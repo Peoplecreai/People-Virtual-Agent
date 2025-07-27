@@ -1,0 +1,4 @@
+Flask
+slack_bolt
+google-cloud-aiplatform
+gunicorn
