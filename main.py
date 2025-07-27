@@ -19,6 +19,8 @@ SLACK_SIGNING_SECRET = require_env_var("SLACK_SIGNING_SECRET")
 GEMINI_API_KEY = require_env_var("GEMINI_API_KEY")
 MODEL = "gemini-2.5-flash"
 
+MODEL = "gemini-2.0-flash"
+
 slack_app = App(token=SLACK_BOT_TOKEN, signing_secret=SLACK_SIGNING_SECRET)
 handler = SlackRequestHandler(slack_app)
 app = Flask(__name__)
@@ -40,6 +42,7 @@ def handle_app_mention(body, say, ack, logger):
     try:
         response = get_gemini_response(user_msg)
     except APIError:
+    except Exception as e:
         logger.exception("Gemini API request failed")
         response = "Lo siento, ocurrió un error al procesar tu mensaje."
     say(response)
@@ -56,6 +59,7 @@ def handle_message_events(body, say, ack, logger):
         try:
             response = get_gemini_response(user_msg)
         except APIError:
+        except Exception:
             logger.exception("Gemini API request failed")
             response = "Lo siento, ocurrió un error al procesar tu mensaje."
         say(response)
