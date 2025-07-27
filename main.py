@@ -4,9 +4,18 @@ from slack_bolt import App
 import google.generativeai as genai
 import os
 
-SLACK_BOT_TOKEN = os.environ["SLACK_BOT_TOKEN"]
-SLACK_SIGNING_SECRET = os.environ["SLACK_SIGNING_SECRET"]
-GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
+
+def require_env_var(name: str) -> str:
+    """Return the value of an environment variable or raise an error."""
+    value = os.getenv(name)
+    if not value:
+        raise RuntimeError(f"Environment variable {name} is required")
+    return value
+
+
+SLACK_BOT_TOKEN = require_env_var("SLACK_BOT_TOKEN")
+SLACK_SIGNING_SECRET = require_env_var("SLACK_SIGNING_SECRET")
+GEMINI_API_KEY = require_env_var("GEMINI_API_KEY")
 MODEL = "gemini-2.0-flash"
 
 slack_app = App(token=SLACK_BOT_TOKEN, signing_secret=SLACK_SIGNING_SECRET)
@@ -41,6 +50,11 @@ def slack_events():
     if request.json and "challenge" in request.json:
         return jsonify({"challenge": request.json["challenge"]})
     return handler.handle(request)
+
+
+@app.route("/healthz", methods=["GET"])
+def health_check():
+    return "OK", 200
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
