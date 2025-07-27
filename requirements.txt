@@ -1,4 +1,4 @@
 Flask
 slack_bolt
-google-generativeai
+google-genai
 gunicorn
