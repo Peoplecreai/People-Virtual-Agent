@@ -28,6 +28,8 @@ def handle_app_mention(body, say):
 
 @app.route("/", methods=["POST"])
 def slack_events():
+    if request.json and "challenge" in request.json:
+        return jsonify({"challenge": request.json["challenge"]})
     return handler.handle(request)
 
 if __name__ == "__main__":
