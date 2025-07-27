@@ -30,19 +30,31 @@ def get_gemini_response(user_msg):
     return response.text
 
 @slack_app.event("app_mention")
-def handle_app_mention(body, say):
-    user_msg = body["event"]["text"]
-    response = get_gemini_response(user_msg)
+def handle_app_mention(body, say, ack, logger):
+    """Respond when the bot is mentioned in a channel."""
+    ack()
+    user_msg = body["event"].get("text", "")
+    try:
+        response = get_gemini_response(user_msg)
+    except Exception as e:
+        logger.exception("Gemini API request failed")
+        response = "Lo siento, ocurrió un error al procesar tu mensaje."
     say(response)
 
 
 @slack_app.event("message")
-def handle_message_events(body, say, logger):
+def handle_message_events(body, say, ack, logger):
+    """Handle direct messages to the bot."""
+    ack()
     event = body.get("event", {})
     if event.get("channel_type") == "im" and "bot_id" not in event:
         logger.info(body)
         user_msg = event.get("text", "")
-        response = get_gemini_response(user_msg)
+        try:
+            response = get_gemini_response(user_msg)
+        except Exception:
+            logger.exception("Gemini API request failed")
+            response = "Lo siento, ocurrió un error al procesar tu mensaje."
         say(response)
 
 @app.route("/", methods=["POST"])
