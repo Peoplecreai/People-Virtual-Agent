@@ -1,4 +1,3 @@
 Flask
 slack_bolt
-google-genai
 gunicorn

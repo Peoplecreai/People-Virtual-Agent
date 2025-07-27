@@ -1,8 +1,6 @@
 # People Virtual Agent
 
-This project implements a simple Slack bot that uses the Google Gemini API. The
-backend is a Flask application deployed on Cloud Run and communicates with Slack
-through the Bolt for Python SDK.
+This project implements a simple Slack bot using Flask and Bolt for Python. The bot replies with `hello world` when you mention it or send a direct message.
 
 ## Local testing
 
@@ -13,22 +11,10 @@ pip install -r requirements.txt
 python main.py
 ```
 
-The requirements file installs the modern `google-genai` SDK, which this bot
-uses to call Gemini models.
-
-Expose the `/` route via a tunnel (e.g. `ngrok`) and configure the resulting URL
-as the Slack event request URL.
+Expose the `/` route via a tunnel (e.g. `ngrok`) and configure the resulting URL as the Slack event request URL.
 
 ## Deployment
 
-The application is designed to be deployed to Cloud Run. Environment variables
-for `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET` and `GEMINI_API_KEY` must be
-provided. The service will fail to start if any of these variables are missing.
-
-The bot uses the `gemini-2.5-flash` model by default. You can change this by
-editing the `MODEL` constant in `main.py`.
+The application is designed to be deployed to Cloud Run. Environment variables for `SLACK_BOT_TOKEN` and `SLACK_SIGNING_SECRET` must be provided. The service will fail to start if any of these variables are missing.
 
 The `/healthz` route can be used for basic health checks and simply returns `OK`.
-
-The bot responds to direct messages and mentions. Incoming events are acknowledged
-immediately before calling Gemini to avoid Slack timeouts.
