@@ -20,4 +20,9 @@ as the Slack event request URL.
 
 The application is designed to be deployed to Cloud Run. Environment variables
 for `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET` and `GEMINI_API_KEY` must be
-provided.
+provided. The service will fail to start if any of these variables are missing.
+
+The `/healthz` route can be used for basic health checks and simply returns `OK`.
+
+The bot responds to direct messages and mentions. Incoming events are acknowledged
+immediately before calling Gemini to avoid Slack timeouts.
