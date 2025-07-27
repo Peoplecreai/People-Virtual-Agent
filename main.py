@@ -26,7 +26,7 @@ def handle_app_mention(body, say):
     response = get_gemini_response(user_msg)
     say(response)
 
-@app.route("/", methods=["POST"])
+@app.route("/slack/events", methods=["POST"])
 def slack_events():
     return handler.handle(request)
 
