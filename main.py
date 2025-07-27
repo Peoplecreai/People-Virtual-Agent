@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from slack_bolt.adapter.flask import SlackRequestHandler
 from slack_bolt import App
 import google.generativeai as genai
@@ -25,6 +25,16 @@ def handle_app_mention(body, say):
     user_msg = body["event"]["text"]
     response = get_gemini_response(user_msg)
     say(response)
+
+
+@slack_app.event("message")
+def handle_message_events(body, say, logger):
+    event = body.get("event", {})
+    if event.get("channel_type") == "im" and "bot_id" not in event:
+        logger.info(body)
+        user_msg = event.get("text", "")
+        response = get_gemini_response(user_msg)
+        say(response)
 
 @app.route("/", methods=["POST"])
 def slack_events():
