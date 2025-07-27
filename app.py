@@ -7,7 +7,7 @@ import os
 SLACK_BOT_TOKEN = os.environ["SLACK_BOT_TOKEN"]
 SLACK_SIGNING_SECRET = os.environ["SLACK_SIGNING_SECRET"]
 GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
-MODEL = "gemini-1.5-pro"
+MODEL = "gemini-2.0-flash"
 
 slack_app = App(token=SLACK_BOT_TOKEN, signing_secret=SLACK_SIGNING_SECRET)
 handler = SlackRequestHandler(slack_app)
