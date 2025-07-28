@@ -26,16 +26,23 @@ model = genai.GenerativeModel('gemini-2.0-flash')
 app = Flask(__name__)
 
 processed_ids = set()
+sent_ts = set()
 
 def handle_event(data):
     event = data["event"]
+    event_ts = event.get("ts")
     event_type = event.get("type")
     user = event.get("user")
     bot_id = event.get("bot_id")
     subtype = event.get("subtype")
 
-    # Si el mensaje es del bot (o de cualquier bot), ignóralo
-    if user == BOT_USER_ID or bot_id is not None or subtype == "bot_message":
+    # Ignora mensajes enviados previamente por este bot o por cualquier otro bot
+    if (
+        event_ts in sent_ts
+        or user == BOT_USER_ID
+        or bot_id is not None
+        or subtype == "bot_message"
+    ):
         return
 
     # Mensaje directo o en canal (sin subtipo)
@@ -44,11 +51,12 @@ def handle_event(data):
             try:
                 gemini = model.generate_content(event["text"])
                 textout = gemini.text.replace("**", "*")
-                client.chat_postMessage(
+                response = client.chat_postMessage(
                     channel=event["channel"],
                     text=textout,
                     mrkdwn=True
                 )
+                sent_ts.add(response.get("ts"))
             except SlackApiError as e:
                 print(f"Error posting message: {e.response['error']}")
 
@@ -60,11 +68,12 @@ def handle_event(data):
         try:
             gemini = model.generate_content(event["text"])
             textout = gemini.text.replace("**", "*")
-            client.chat_postMessage(
+            response = client.chat_postMessage(
                 channel=event["channel"],
                 text=textout,
                 mrkdwn=True
             )
+            sent_ts.add(response.get("ts"))
             processed_ids.add(event.get("client_msg_id"))
         except SlackApiError as e:
             print(f"Error posting message: {e.response['error']}")
