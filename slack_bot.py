@@ -1,8 +1,10 @@
-"""Slack bot that responds with 'hello world'."""
+"""Slack bot that interfaces with Gemini."""
 
 import os
 from slack_bolt import App
 from slack_bolt.adapter.flask import SlackRequestHandler
+
+import gemini_AI
 
 
 def require_env_var(name: str) -> str:
@@ -24,7 +26,11 @@ handler = SlackRequestHandler(slack_app)
 def handle_app_mention(body, say, ack):
     """Respond when the bot is mentioned in a channel."""
     ack()
-    say("hello world")
+    event = body.get("event", {})
+    channel_id = event.get("channel")
+    text = event.get("text", "")
+    response = gemini_AI.send_message(channel_id, text)
+    say(response)
 
 
 @slack_app.event("message")
@@ -33,5 +39,8 @@ def handle_message_events(body, say, ack):
     ack()
     event = body.get("event", {})
     if event.get("channel_type") == "im" and "bot_id" not in event:
-        say("hello world")
+        channel_id = event.get("channel")
+        text = event.get("text", "")
+        response = gemini_AI.send_message(channel_id, text)
+        say(response)
 
