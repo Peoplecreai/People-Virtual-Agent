@@ -4,7 +4,7 @@ from slack_sdk.errors import SlackApiError
 from dotenv import load_dotenv
 import os
 from threading import Thread
-import google.generativeai as genai
+from google import genai
 
 # Carga variables de entorno
 load_dotenv()
