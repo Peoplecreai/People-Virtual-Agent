@@ -1,39 +1,37 @@
 from flask import Flask, request, jsonify
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
-import os
 from dotenv import load_dotenv
-import google.generativeai as genai
+import os
 from threading import Thread
+import google.generativeai as genai
 
-processed_ids = set()
-
-# Carga variables de entorno desde .env
+# Load environment variables
 load_dotenv()
-
-# Llaves de API y configuración de modelos
-google_api_key = os.getenv('GEMINI_API_KEY')
-genai.configure(api_key=google_api_key)
-model = genai.GenerativeModel('gemini-2.0-flash')
 
 slack_token = os.getenv('SLACK_BOT_TOKEN')
 client = WebClient(token=slack_token)
 BOT_USER_ID = os.getenv('BOT_USER_ID')
+
+google_api_key = os.getenv('GEMINI_API_KEY')
+genai.configure(api_key=google_api_key)
+model = genai.GenerativeModel('gemini-2.0-flash')
+
 app = Flask(__name__)
 
-def handle_event_async(data):
-    thread = Thread(target=handle_event, args=(data,), daemon=True)
-    thread.start()
+processed_ids = set()
 
 def handle_event(data):
     event = data["event"]
+    event_type = event.get("type")
+    user = event.get("user")
 
-    # Filtra mensajes sin usuario o del propio bot (evita loop)
-    if not event.get("user") or event.get("user") == BOT_USER_ID:
+    # Si el mensaje es del bot, ignóralo
+    if user == BOT_USER_ID:
         return
 
-    # Mensaje directo sin subtipo (solo mensajes normales de usuarios)
-    if event["type"] == "message" and event.get("subtype") is None:
+    # Mensaje directo o en canal (sin subtipo)
+    if event_type == "message" and event.get("subtype") is None:
         if event["channel"].startswith('D') or event.get("channel_type") == 'im':
             try:
                 gemini = model.generate_content(event["text"])
@@ -46,8 +44,11 @@ def handle_event(data):
             except SlackApiError as e:
                 print(f"Error posting message: {e.response['error']}")
 
-    # Menciones al bot en canales públicos/privados
-    elif event["type"] == "app_mention" and event.get("client_msg_id") not in processed_ids:
+    # Si es una mención a la app
+    elif event_type == "app_mention" and event.get("client_msg_id") not in processed_ids:
+        # También ignora mensajes que ya procesaste o sean del bot
+        if user == BOT_USER_ID:
+            return
         try:
             gemini = model.generate_content(event["text"])
             textout = gemini.text.replace("**", "*")
@@ -60,6 +61,9 @@ def handle_event(data):
         except SlackApiError as e:
             print(f"Error posting message: {e.response['error']}")
 
+def handle_event_async(data):
+    Thread(target=handle_event, args=(data,), daemon=True).start()
+
 @app.route('/gemini', methods=['GET']) 
 def helloworld(): 
     gemini = model.generate_content("Hi")
@@ -70,10 +74,8 @@ def slack_events():
     data = request.json
     if "challenge" in data:
         return jsonify({"challenge": data["challenge"]})
-    
     if "event" in data:
         handle_event_async(data)
-    
     return "", 200
 
 if __name__ == "__main__":
