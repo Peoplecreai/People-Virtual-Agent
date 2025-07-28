@@ -12,6 +12,9 @@ python main.py
 ```
 
 Set the environment variables `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, and
+`GEMINI_API_KEY` before running the application. The bot uses the
+`gemini-2.5-flash` model by default, but you can override this by setting
+`GEMINI_MODEL`.
 `GEMINI_API_KEY` before running the application.
 
 Expose the `/` route via a tunnel (e.g. `ngrok`) and configure the resulting URL as the Slack event request URL.
