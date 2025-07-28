@@ -4,14 +4,19 @@ from slack_sdk.errors import SlackApiError
 from dotenv import load_dotenv
 import os
 from threading import Thread
-import google.genai as genai
+import google.generativeai as genai
 
-# Carga variables de entorno
+import google.auth
+from google.cloud import secretmanager
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
+import base64
+import json
+
+# Load environment variables
 load_dotenv()
 
 slack_token = os.getenv('SLACK_BOT_TOKEN')
-if not slack_token:
-    raise RuntimeError('SLACK_BOT_TOKEN is not set')
 client = WebClient(token=slack_token)
 BOT_USER_ID = os.getenv('BOT_USER_ID')
 if not BOT_USER_ID:
@@ -22,26 +27,78 @@ if not BOT_USER_ID:
         print(f"Failed to fetch bot user ID: {e.response['error']}")
 
 google_api_key = os.getenv('GEMINI_API_KEY')
-if not google_api_key:
-    raise RuntimeError('GEMINI_API_KEY is not set')
-model_name = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
-genai_client = genai.Client(api_key=google_api_key)
+genai.configure(api_key=google_api_key)
+model = genai.GenerativeModel('gemini-2.0-flash')
+
+GOOGLE_PROJECT_ID = os.getenv("GOOGLE_PROJECT_ID")
+GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
+GOOGLE_CRED_SECRET = os.getenv("GOOGLE_CRED_SECRET", "MY_GOOGLE_CRED")  # default
 
 app = Flask(__name__)
 
 processed_ids = set()
 sent_ts = set()
 
+
+# ================== GOOGLE SHEETS ACCESS VIA SECRET MANAGER =====================
+
+def get_google_creds():
+    # Usa la librería de Google Cloud Secret Manager
+    client_secret = secretmanager.SecretManagerServiceClient()
+    name = f"projects/{GOOGLE_PROJECT_ID}/secrets/{GOOGLE_CRED_SECRET}/versions/latest"
+    response = client_secret.access_secret_version(name=name)
+    service_account_info = json.loads(response.payload.data.decode("UTF-8"))
+    creds = service_account.Credentials.from_service_account_info(service_account_info, scopes=[
+        "https://www.googleapis.com/auth/spreadsheets.readonly"
+    ])
+    return creds
+
+def get_user_info_from_sheet(slack_id):
+    creds = get_google_creds()
+    service = build("sheets", "v4", credentials=creds)
+    sheet = service.spreadsheets()
+    result = sheet.values().get(
+        spreadsheetId=GOOGLE_SHEET_ID,
+        range="A1:H100"  # ajusta si tienes más filas
+    ).execute()
+    values = result.get("values", [])
+    if not values or len(values) < 2:
+        return None
+
+    headers = [col.strip() for col in values[0]]
+    slack_col_idx = headers.index("Slack ID") if "Slack ID" in headers else None
+    name_pref_idx = headers.index("Name (pref)") if "Name (pref)" in headers else None
+    name_first_idx = headers.index("Name (first)") if "Name (first)" in headers else None
+    seniority_idx = headers.index("Seniority") if "Seniority" in headers else None
+
+    for row in values[1:]:
+        if slack_col_idx is not None and len(row) > slack_col_idx:
+            # Busca por coincidencia exacta del ID completo
+            if row[slack_col_idx].strip() == slack_id:
+                # Saca los nombres según prefiera
+                name = ""
+                if name_pref_idx is not None and len(row) > name_pref_idx and row[name_pref_idx]:
+                    name = row[name_pref_idx]
+                elif name_first_idx is not None and len(row) > name_first_idx:
+                    name = row[name_first_idx]
+                else:
+                    name = "usuario"
+                seniority = row[seniority_idx] if seniority_idx is not None and len(row) > seniority_idx else ""
+                return {"name": name, "seniority": seniority}
+    return None
+
+# ================== SLACK EVENT HANDLER =====================
+
 def handle_event(data):
     event = data["event"]
-    event_type = event.get("type")
     event_ts = event.get("ts")
+    event_type = event.get("type")
     user = event.get("user")
     bot_id = event.get("bot_id")
     subtype = event.get("subtype")
-    thread_ts = event.get("thread_ts") or event_ts  # Usa thread_ts o el propio ts si es inicio
+    text = event.get("text", "")
 
-    # Ignora mensajes de bots o duplicados
+    # Ignora mensajes enviados previamente por este bot o por cualquier otro bot
     if (
         event_ts in sent_ts
         or user == BOT_USER_ID
@@ -50,87 +107,69 @@ def handle_event(data):
     ):
         return
 
-    # Responde cuando inicia un nuevo thread de agente AI
-    if event_type == "assistant_thread_started":
-        try:
-            # Puedes personalizar el mensaje de bienvenida o agregar prompts sugeridos aquí
-            welcome = "Hola 👋 Soy tu asistente Gemini. Escríbeme cualquier pregunta."
+    # Si es mensaje directo
+    if event_type == "message" and event.get("subtype") is None and (event["channel"].startswith('D') or event.get("channel_type") == 'im'):
+        # Busca nombre en Google Sheets usando el Slack ID
+        user_info = get_user_info_from_sheet(user)
+        if user_info and text.strip().lower() in ["hola", "hello", "buenas", "hey"]:
+            saludo = f"Hola {user_info['name']} ¿cómo te puedo ayudar hoy?"
             client.chat_postMessage(
                 channel=event["channel"],
-                text=welcome,
-                mrkdwn=True,
-                thread_ts=thread_ts
+                text=saludo,
+                mrkdwn=True
             )
-        except SlackApiError as e:
-            print(f"Error posting welcome message: {e.response['error']}")
-        return
-
-    # Responde mensajes directos (DMs, container lateral) o app mentions
-    if event_type == "message" and subtype is None:
-        if event["channel"].startswith('D') or event.get("channel_type") == 'im' or event.get("channel_type") == "app_home":
-            try:
-                gemini = genai_client.models.generate_content(
-                    model=model_name,
-                    contents=event["text"],
-                )
-                textout = gemini.text.replace("**", "*")
-                response = client.chat_postMessage(
-                    channel=event["channel"],
-                    text=textout,
-                    mrkdwn=True,
-                    thread_ts=thread_ts
-                )
-                sent_ts.add(response.get("ts"))
-            except SlackApiError as e:
-                print(f"Error posting message: {e.response['error']}")
-            except genai.errors.APIError as e:
-                print(f"Gemini API error: {e.message}")
-            except Exception as e:
-                print(f"Unexpected error: {e}")
-        return
-
-    if event_type == "app_mention" and event.get("client_msg_id") not in processed_ids:
-        if user == BOT_USER_ID:
+            sent_ts.add(event_ts)
             return
+
+        # Si no es un saludo básico, procesa como consulta a Gemini
         try:
-            gemini = genai_client.models.generate_content(
-                model=model_name,
-                contents=event["text"],
-            )
+            gemini = model.generate_content(text)
             textout = gemini.text.replace("**", "*")
-            response = client.chat_postMessage(
+            client.chat_postMessage(
                 channel=event["channel"],
                 text=textout,
-                mrkdwn=True,
-                thread_ts=thread_ts
+                mrkdwn=True
             )
-            sent_ts.add(response.get("ts"))
+            sent_ts.add(event_ts)
+        except SlackApiError as e:
+            print(f"Error posting message: {e.response['error']}")
+
+    # Si es una mención a la app
+    elif event_type == "app_mention" and event.get("client_msg_id") not in processed_ids:
+        if user == BOT_USER_ID:
+            return
+        # Aquí también puedes saludar con nombre si quieres
+        user_info = get_user_info_from_sheet(user)
+        if user_info and text.strip().lower() in ["hola", "hello", "buenas", "hey"]:
+            saludo = f"Hola {user_info['name']} ¿cómo te puedo ayudar hoy?"
+            client.chat_postMessage(
+                channel=event["channel"],
+                text=saludo,
+                mrkdwn=True
+            )
+            processed_ids.add(event.get("client_msg_id"))
+            sent_ts.add(event_ts)
+            return
+        try:
+            gemini = model.generate_content(text)
+            textout = gemini.text.replace("**", "*")
+            client.chat_postMessage(
+                channel=event["channel"],
+                text=textout,
+                mrkdwn=True
+            )
+            sent_ts.add(event_ts)
             processed_ids.add(event.get("client_msg_id"))
         except SlackApiError as e:
             print(f"Error posting message: {e.response['error']}")
-        except genai.errors.APIError as e:
-            print(f"Gemini API error: {e.message}")
-        except Exception as e:
-            print(f"Unexpected error: {e}")
-        return
-
-    # Si quieres manejar assistant_thread_context_changed, aquí va el código
 
 def handle_event_async(data):
     Thread(target=handle_event, args=(data,), daemon=True).start()
 
 @app.route('/gemini', methods=['GET'])
 def helloworld():
-    try:
-        gemini = genai_client.models.generate_content(
-            model=model_name,
-            contents="Hi",
-        )
-        return gemini.text
-    except genai.errors.APIError as e:
-        return f"Gemini API error: {e.message}", 500
-    except Exception as e:
-        return f"Unexpected error: {e}", 500
+    gemini = model.generate_content("Hi")
+    return gemini.text
 
 @app.route("/", methods=["POST"])
 def slack_events():
