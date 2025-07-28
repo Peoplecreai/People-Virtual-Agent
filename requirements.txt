@@ -1,4 +1,11 @@
 Flask
-slack_bolt
+google-ai-generativelanguage
+google-api-core
+google-auth
+google-generativeai
+googleapis-common-protos
 gunicorn
-google-genai
+requests
+slack_sdk
+colorama
+python-dotenv
