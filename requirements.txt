@@ -5,5 +5,3 @@ google-genai
 gunicorn
 pytest
 pytest-mock
-gspread
-google-auth
