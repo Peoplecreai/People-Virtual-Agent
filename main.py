@@ -12,6 +12,12 @@ load_dotenv()
 slack_token = os.getenv('SLACK_BOT_TOKEN')
 client = WebClient(token=slack_token)
 BOT_USER_ID = os.getenv('BOT_USER_ID')
+if not BOT_USER_ID:
+    try:
+        auth_info = client.auth_test()
+        BOT_USER_ID = auth_info.get("user_id")
+    except SlackApiError as e:
+        print(f"Failed to fetch bot user ID: {e.response['error']}")
 
 google_api_key = os.getenv('GEMINI_API_KEY')
 genai.configure(api_key=google_api_key)
@@ -25,9 +31,11 @@ def handle_event(data):
     event = data["event"]
     event_type = event.get("type")
     user = event.get("user")
+    bot_id = event.get("bot_id")
+    subtype = event.get("subtype")
 
-    # Si el mensaje es del bot, ignóralo
-    if user == BOT_USER_ID:
+    # Si el mensaje es del bot (o de cualquier bot), ignóralo
+    if user == BOT_USER_ID or bot_id is not None or subtype == "bot_message":
         return
 
     # Mensaje directo o en canal (sin subtipo)
