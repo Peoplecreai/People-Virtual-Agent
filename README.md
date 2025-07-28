@@ -2,7 +2,7 @@
 
 This project implements a Slack bot using Flask and Bolt for Python. The bot uses Google's Gemini API to generate responses when you mention it or send a direct message.
 
-> **Note**: The current implementation depends on the `google-generativeai` package. Google recommends using the new `google-genai` library for all Gemini API calls. See the [official code generation guidelines](https://github.com/googleapis/python-genai/blob/main/codegen_instructions.md) for up‑to‑date usage examples.
+> **Note**: This project now uses the `google-genai` library for Gemini API calls. See the [official code generation guidelines](https://github.com/googleapis/python-genai/blob/main/codegen_instructions.md) for up‑to‑date usage examples.
 
 ## Local testing
 
