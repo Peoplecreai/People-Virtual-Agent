@@ -4,12 +4,14 @@ from slack_sdk.errors import SlackApiError
 from dotenv import load_dotenv
 import os
 from threading import Thread
-from google import genai
+import google.genai as genai
 
 # Carga variables de entorno
 load_dotenv()
 
 slack_token = os.getenv('SLACK_BOT_TOKEN')
+if not slack_token:
+    raise RuntimeError('SLACK_BOT_TOKEN is not set')
 client = WebClient(token=slack_token)
 BOT_USER_ID = os.getenv('BOT_USER_ID')
 if not BOT_USER_ID:
@@ -20,8 +22,11 @@ if not BOT_USER_ID:
         print(f"Failed to fetch bot user ID: {e.response['error']}")
 
 google_api_key = os.getenv('GEMINI_API_KEY')
-genai.configure(api_key=google_api_key)
-model = genai.GenerativeModel('gemini-2.0-flash')
+
+if not google_api_key:
+    raise RuntimeError('GEMINI_API_KEY is not set')
+model_name = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
+genai_client = genai.Client(api_key=google_api_key)
 
 app = Flask(__name__)
 
@@ -65,7 +70,10 @@ def handle_event(data):
     if event_type == "message" and subtype is None:
         if event["channel"].startswith('D') or event.get("channel_type") == 'im' or event.get("channel_type") == "app_home":
             try:
-                gemini = model.generate_content(event["text"])
+                gemini = genai_client.models.generate_content(
+                    model=model_name,
+                    contents=event["text"],
+                )
                 textout = gemini.text.replace("**", "*")
                 response = client.chat_postMessage(
                     channel=event["channel"],
@@ -76,13 +84,20 @@ def handle_event(data):
                 sent_ts.add(response.get("ts"))
             except SlackApiError as e:
                 print(f"Error posting message: {e.response['error']}")
+            except genai.errors.APIError as e:
+                print(f"Gemini API error: {e.message}")
+            except Exception as e:
+                print(f"Unexpected error: {e}")
         return
 
     if event_type == "app_mention" and event.get("client_msg_id") not in processed_ids:
         if user == BOT_USER_ID:
             return
         try:
-            gemini = model.generate_content(event["text"])
+            gemini = genai_client.models.generate_content(
+                model=model_name,
+                contents=event["text"],
+            )
             textout = gemini.text.replace("**", "*")
             response = client.chat_postMessage(
                 channel=event["channel"],
@@ -94,6 +109,10 @@ def handle_event(data):
             processed_ids.add(event.get("client_msg_id"))
         except SlackApiError as e:
             print(f"Error posting message: {e.response['error']}")
+        except genai.errors.APIError as e:
+            print(f"Gemini API error: {e.message}")
+        except Exception as e:
+            print(f"Unexpected error: {e}")
         return
 
     # Si quieres manejar assistant_thread_context_changed, aquí va el código
@@ -103,8 +122,16 @@ def handle_event_async(data):
 
 @app.route('/gemini', methods=['GET'])
 def helloworld():
-    gemini = model.generate_content("Hi")
-    return gemini.text
+    try:
+        gemini = genai_client.models.generate_content(
+            model=model_name,
+            contents="Hi",
+        )
+        return gemini.text
+    except genai.errors.APIError as e:
+        return f"Gemini API error: {e.message}", 500
+    except Exception as e:
+        return f"Unexpected error: {e}", 500
 
 @app.route("/", methods=["POST"])
 def slack_events():
