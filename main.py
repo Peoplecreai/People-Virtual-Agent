@@ -46,22 +46,27 @@ def get_preferred_name(slack_id):
         print("SHEET_ID not set")
         return None
     sh = gc.open_by_key(sheet_id)
-    worksheet = sh.sheet1  # Cambia esto si usas otra pestaña/tab
+    worksheet = sh.sheet1
     records = worksheet.get_all_records()
-    # Revisa headers para debug si no encuentra nada
-    # print("Headers:", worksheet.row_values(1))
+    print(f"[DEBUG] Buscando Slack ID: '{slack_id}'")
     for row in records:
-        sheet_slack_id = str(row.get("Slack ID", ""))
-        # Solo compara la parte final
-        if sheet_slack_id.endswith(slack_id):
-            # Preferred name si existe, sino Name (first)
+        # Borra todos los espacios y saltos de línea, compara solo el final
+        sheet_slack_id = str(row.get("Slack ID", "")).strip()
+        normalized_sheet_id = ''.join(sheet_slack_id.split())
+        normalized_slack_id = slack_id.strip()
+        print(f"[DEBUG] Sheet Slack ID: '{normalized_sheet_id}' vs. '{normalized_slack_id}'")
+        if normalized_slack_id and normalized_sheet_id.endswith(normalized_slack_id):
             pref = row.get("Name (pref)", "").strip()
             if pref:
+                print(f"[DEBUG] Matched pref: {pref}")
                 return pref
             first = row.get("Name (first)", "").strip()
             if first:
+                print(f"[DEBUG] Matched first: {first}")
                 return first
+            print("[DEBUG] No preferred or first name found in matched row.")
             return None
+    print(f"[WARN] No match found in Sheet for slack_id: {slack_id}")
     return None
 
 app = Flask(__name__)
