@@ -19,6 +19,11 @@ application will attempt to determine the bot's ID using Slack's `auth.test`
 API method. The bot uses the `gemini-2.0-flash` model by default, but you can
 override this by setting `GEMINI_MODEL`.
 
+The bot also tracks the timestamps of the messages it posts and ignores any
+events that contain those timestamps. This prevents the bot from replying to
+its own responses if Slack does not include a `bot_id` or subtype in the event
+payload.
+
 Expose the `/` route via a tunnel (e.g. `ngrok`) and configure the resulting URL as the Slack event request URL.
 
 ## Deployment
