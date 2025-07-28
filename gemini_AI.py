@@ -39,8 +39,6 @@ def send_message(channel_id: str, message: str) -> str:
 
     try:
         response = chat.send_message(message)
+        return response.text
     except APIError:
         return "Lo siento, ocurrió un error al procesar tu mensaje."
-
-    response = chat.send_message(message)
-    return response.text
