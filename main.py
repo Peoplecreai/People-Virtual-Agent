@@ -4,7 +4,7 @@ from slack_sdk.errors import SlackApiError
 from dotenv import load_dotenv
 import os
 from threading import Thread
-import google.generativeai as genai
+import google.genai as genai
 
 import google.auth
 from google.cloud import secretmanager
