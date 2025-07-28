@@ -25,9 +25,11 @@ def handle_event(data):
     event = data["event"]
     event_type = event.get("type")
     user = event.get("user")
+    bot_id = event.get("bot_id")
+    subtype = event.get("subtype")
 
-    # Si el mensaje es del bot, ignóralo
-    if user == BOT_USER_ID:
+    # Si el mensaje es del bot (o de cualquier bot), ignóralo
+    if user == BOT_USER_ID or bot_id is not None or subtype == "bot_message":
         return
 
     # Mensaje directo o en canal (sin subtipo)
