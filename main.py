@@ -16,9 +16,9 @@ processed_ids = set()
 load_dotenv()
 
 # Define Google API Key and Set Gemini Pro Model
-google_api_key = os.getenv('GOOGLE_API_KEY')
+google_api_key = os.getenv('GEMINI_API_KEY')
 genai.configure(api_key=google_api_key)
-model = genai.GenerativeModel('gemini-pro')
+model = genai.GenerativeModel('gemini-2.0-flash')
 
 # Initialize a Web Client with the Slack bot token from the environment variables
 slack_token = os.getenv('SLACK_BOT_TOKEN')
