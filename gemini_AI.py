@@ -36,8 +36,11 @@ def _get_chat(channel_id: str) -> genai.Chat:
 def send_message(channel_id: str, message: str) -> str:
     """Send a message to Gemini and return the response text."""
     chat = _get_chat(channel_id)
+
     try:
         response = chat.send_message(message)
     except APIError:
         return "Lo siento, ocurrió un error al procesar tu mensaje."
+
+    response = chat.send_message(message)
     return response.text
