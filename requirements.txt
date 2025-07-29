@@ -7,6 +7,3 @@ pytest
 pytest-mock
 gspread
 google-auth
-google-cloud-firestore
-requests
-python-dateutil
