@@ -1,22 +1,26 @@
-import { GoogleGenAI } from "@google/genai";
-import logger from '../utils/logger.js';
+import {GoogleGenAI} from '@google/genai';
 
-const apiKey = process.env.GEMINI_API_KEY;
-if (!apiKey) throw new Error('GEMINI_API_KEY is not set');
+const ai = new GoogleGenAI({ apiKey: "GOOGLE_API_KEY" });
+const chat = ai.chats.create({
+  model: "gemini-2.0-flash-lite",
+  history: [
+    {
+      role: "user",
+      parts: [{ text: "Hello" }],
+    },
+    {
+      role: "model",
+      parts: [{ text: "Great to meet you. What would you like to know?" }],
+    },
+  ],
+});
 
-const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash'; // Actualizado a versión 2025
+const response1 = await chat.sendMessage({
+  message: "I have 2 dogs in my house.",
+});
+console.log("Chat response 1:", response1.text);
 
-const genai = new GoogleGenAI({ apiKey });
-
-export async function generateContent(contents) {
-  try {
-    const response = await genai.models.generateContent({
-      model: modelName,
-      contents,
-    });
-    return response.text;
-  } catch (error) {
-    logger.error(`Gemini API error: ${error.message}`);
-    throw error;
-  }
-}
+const response2 = await chat.sendMessage({
+  message: "How many paws are in my house?",
+});
+console.log("Chat response 2:", response2.text);
