@@ -15,7 +15,13 @@ export function registerHandlers() {
     if (!channelId) {
       // Fetch si falta (de search, a veces falta)
       console.warn('Missing channel_id, attempting fallback');
-      channelId = event.channel; // O usa client para inferir
+      try {
+        const dm = await client.conversations.open({ users: normalizeSlackId(userId) });
+        channelId = dm.channel.id;
+      } catch (error) {
+        logger.error(`Error opening DM: ${error.message}`);
+        return;
+      }
     }
     const threadTs = at.thread_ts;
     if (channelId && threadTs) {
@@ -24,7 +30,7 @@ export function registerHandlers() {
         const name = await resolveName(userId);
         const saludo = name ? `Hola ${name}, ¿cómo te puedo ayudar hoy?` : '¡Hola! ¿Cómo estás? ¿En qué puedo ayudarte hoy?';
         try {
-          await say({ text: saludo, thread_ts: threadTs });
+          const resp = await client.chat.postMessage({ channel: channelId, text: saludo, thread_ts: threadTs });
           greetedThreads.add(key);
         } catch (error) {
           logger.error(`Error in message: ${error.message}`);
@@ -44,10 +50,10 @@ export function registerHandlers() {
     // Ignora bots, duplicados
     if (sentTs.has(eventTs) || user === botUserId || botId || subtype === 'bot_message') return;
 
-    // DM normal o channel_type im/app_home
+    // DM normal o channel_type im
     const channel = event.channel || '';
     const channelType = event.channel_type;
-    if (channel.startsWith('D') || ['im', 'app_home'].includes(channelType)) {
+    if (channel.startsWith('D') || channelType === 'im') {
       try {
         const response = await generateContent(event.text || '');
         const textOut = (response || '').replace(/\*\*/g, '*') || '¿Puedes repetir tu mensaje?';
@@ -56,24 +62,6 @@ export function registerHandlers() {
       } catch (error) {
         console.error(`Error in message: ${error.message}`);
       }
-    }
-  });
-
-  // 3) app_mention
-  app.event('app_mention', async ({ event, say }) => {
-    if (event.user === botUserId) return;
-    const clientMsgId = event.client_msg_id;
-    if (processedIds.has(clientMsgId)) return;
-
-    const threadTs = event.thread_ts || event.ts;
-    try {
-      const response = await generateContent(event.text || '');
-      const textOut = (response || '').replace(/\*\*/g, '*');
-      const resp = await say({ text: textOut, thread_ts: threadTs });
-      sentTs.add(resp.ts);
-      processedIds.add(clientMsgId);
-    } catch (error) {
-      console.error(`Error in app_mention: ${error.message}`);
     }
   });
 }
