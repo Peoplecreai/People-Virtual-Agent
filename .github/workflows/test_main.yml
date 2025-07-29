@@ -1,5 +1,0 @@
-name: Export Google creds
-  run: |
-    echo "${{ secrets.MY_GOOGLE_CREDS }}" > creds.json
-    export GOOGLE_APPLICATION_CREDENTIALS=$(pwd)/creds.json
-    # O si tu script lee de env: export MY_GOOGLE_CREDS="${{ secrets.MY_GOOGLE_CREDS }}"
