@@ -1,5 +1,5 @@
 import { app, sentTs, processedEventIds, greetedThreads } from './app.js';
-import { generateContent } from '../agent/gemini.js';
+import { sendChatMessage } from '../agent/gemini.js';
 import { resolveName } from '../utils/nameResolution.js';
 import { normalizeSlackId } from '../utils/slackUtils.js';
 import { botUserId } from './app.js';
