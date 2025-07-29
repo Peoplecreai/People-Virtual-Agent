@@ -5,9 +5,14 @@ from dotenv import load_dotenv
 import os
 from threading import Thread
 from google import genai
+from google.genai import types
 import gspread
 from google.oauth2.service_account import Credentials
 import json
+from google.cloud import firestore
+from datetime import datetime
+import requests
+from dateutil.parser import parse as date_parse
 
 # ========== Configuración ==========
 load_dotenv()
@@ -31,6 +36,27 @@ if not google_api_key:
     raise RuntimeError('GEMINI_API_KEY is not set')
 model_name = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
 genai_client = genai.Client(api_key=google_api_key)
+
+# Firestore para cachear datos de usuario y conversaciones
+try:
+    db = firestore.Client()
+except Exception as e:
+    print(f"[Firestore] {e}")
+    db = None
+
+# Política de viaje por seniority
+TRAVEL_POLICY = {
+    'seniority_budgets': {
+        'L0-L3': {'hotel_night': 100, 'flight_class': 'economy', 'per_diem': 50},
+        'L4-L6': {'hotel_night': 150, 'flight_class': 'economy', 'per_diem': 75},
+        'L7-L10': {'hotel_night': 300, 'flight_class': 'business', 'per_diem': 100},
+    }
+}
+
+SYSTEM_PROMPT = (
+    "Eres agente virtual para viajes. Convierte lugares en coordenadas/IATA, "
+    "fechas a formato YYYY-MM-DD y aplica la política de viajes según seniority."
+)
 
 # -------- Utilidades ----------
 def normalize_slack_id(value: str) -> str:
@@ -125,6 +151,70 @@ def get_preferred_name(slack_id):
     if isinstance(first, str) and first.strip():
         return first.strip()
     return None
+
+def parse_dob(dob_str):
+    """Convierte DD/MM/YY a YYYY-MM-DD. Devuelve None si falla."""
+    if not dob_str:
+        return None
+    try:
+        d, m, y = map(int, dob_str.split('/'))
+        year = 1900 + y if y < 100 else y
+        return f"{year:04d}-{m:02d}-{d:02d}"
+    except Exception:
+        try:
+            dt = date_parse(dob_str, dayfirst=True)
+            return dt.strftime('%Y-%m-%d')
+        except Exception:
+            return None
+
+def get_user_data(slack_id):
+    """Obtiene datos de usuario de Firestore o Sheet y los cachea."""
+    if not db:
+        return None
+    doc_ref = db.collection('users').document(slack_id)
+    doc = doc_ref.get()
+    if doc.exists:
+        return doc.to_dict()
+    row = get_user_record(slack_id)
+    if not row:
+        return None
+    data = {
+        'name_pref': row.get('Name (pref)', '').strip(),
+        'name_first': row.get('Name (first)', '').strip(),
+        'name_last': row.get('Name (last)', '').strip(),
+        'dob': parse_dob(str(row.get('Birth date', '')).strip()),
+        'seniority': str(row.get('Seniority', 'L0')).strip()
+    }
+    try:
+        doc_ref.set(data)
+    except Exception as e:
+        print(f"[Firestore set] {e}")
+    return data
+
+def resolve_location(query: str):
+    """Usa SerpApi para resolver un lugar a ciudad/IATA/latitud/longitud."""
+    serp_key = os.getenv('SERPAPI_KEY')
+    if not serp_key:
+        return {'error': 'SERPAPI_KEY not configured'}
+    params = {
+        'engine': 'google_maps',
+        'q': query,
+        'type': 'search',
+        'api_key': serp_key,
+    }
+    try:
+        resp = requests.get('https://serpapi.com/search', params=params, timeout=10)
+        data = resp.json().get('local_results', [{}])[0]
+        coords = data.get('gps_coordinates', {})
+        return {
+            'city': data.get('title'),
+            'lat': coords.get('latitude'),
+            'lng': coords.get('longitude'),
+            # Resolución real de IATA pendiente
+        }
+    except Exception as e:
+        print(f"[resolve_location] {e}")
+        return {'error': 'location not found'}
 
 # Fallback a perfil de Slack cuando no hay nombre en el Sheet
 def get_slack_name(slack_id):
@@ -238,12 +328,46 @@ def handle_event(data):
                         print(f"Error posting saludo: {e.response['error']}")
                 return  # Opcional: si quieres procesar el primer mensaje con Gemini también, quita este return
 
-            # No es primer mensaje → responde con Gemini (sin chequear greeted_threads)
+            # No es primer mensaje → responde con Gemini usando historial
+            history = []
+            last_activity = None
+            if db:
+                conv_doc = db.collection('conversations').document(key).get()
+                if conv_doc.exists:
+                    data_doc = conv_doc.to_dict()
+                    history = data_doc.get('history', [])
+                    last_activity = data_doc.get('last_activity')
+            if last_activity and (datetime.utcnow() - last_activity).total_seconds() > 300:
+                client.chat_postMessage(channel=event["channel"], text="¿Sigues ahí? ¿Continuamos?", mrkdwn=True, thread_ts=thread_ts)
+                return
+
+            history.append({'role': 'user', 'content': event.get('text', '')})
             try:
                 response = genai_client.models.generate_content(
                     model=model_name,
-                    contents=event.get("text", ""),
+                    contents=history,
+                    config=types.GenerateContentConfig(
+                        system_instruction=SYSTEM_PROMPT,
+                        tools=[get_user_data, resolve_location],
+                    ),
                 )
+
+                if response.function_calls:
+                    for fc in response.function_calls:
+                        if fc.name == 'get_user_data':
+                            result = get_user_data(**dict(fc.args))
+                        elif fc.name == 'resolve_location':
+                            result = resolve_location(**dict(fc.args))
+                        history.append({'role': 'tool', 'content': json.dumps(result)})
+                    response = genai_client.models.generate_content(
+                        model=model_name,
+                        contents=history,
+                        config=types.GenerateContentConfig(
+                            system_instruction=SYSTEM_PROMPT,
+                            tools=[get_user_data, resolve_location],
+                        ),
+                    )
+
                 textout = (response.text or "").replace("**", "*")
                 resp = client.chat_postMessage(
                     channel=event["channel"],
@@ -251,7 +375,13 @@ def handle_event(data):
                     mrkdwn=True,
                     thread_ts=thread_ts
                 )
+                history.append({'role': 'assistant', 'content': textout})
                 sent_ts.add(resp.get("ts"))
+                if db:
+                    db.collection('conversations').document(key).set({
+                        'history': history,
+                        'last_activity': datetime.utcnow()
+                    })
             except SlackApiError as e:
                 print(f"Error posting message: {e.response['error']}")
             except genai.errors.APIError as e:
@@ -268,6 +398,10 @@ def handle_event(data):
             response = genai_client.models.generate_content(
                 model=model_name,
                 contents=event.get("text", ""),
+                config=types.GenerateContentConfig(
+                    system_instruction=SYSTEM_PROMPT,
+                    tools=[get_user_data, resolve_location],
+                ),
             )
             textout = (response.text or "").replace("**", "*")
             resp = client.chat_postMessage(
@@ -295,6 +429,7 @@ def helloworld():
         response = genai_client.models.generate_content(
             model=model_name,
             contents="Hi",
+            config=types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT),
         )
         return response.text
     except genai.errors.APIError as e:
