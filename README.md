@@ -15,6 +15,8 @@ python main.py
 
 Set the environment variables `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`, and `GEMINI_API_KEY` before running the application. Optionally define `BOT_USER_ID` with the identifier of your Slack bot user so the application can avoid replying to its own messages. If `BOT_USER_ID` is not set, the bot will attempt to determine it using Slack's `auth.test` API method. The bot uses the `gemini-2.0-flash` model by default, but you can override this by setting `GEMINI_MODEL`.
 
+To greet users by name, you can provide a Google Sheet that maps Slack IDs to preferred names. The `Slack ID` column may contain IDs, `<@U123>` mentions, or team links—the bot will extract the user ID automatically. Set `MY_GOOGLE_CREDS` with your service account JSON and `SHEET_ID` with the sheet identifier. If these variables are not configured, the bot will fall back to the display name from the Slack profile.
+
 Slack verifies requests using the signing secret. Expose the `/` route via a tunnel (e.g. `ngrok`) and configure the resulting URL as the Slack event request URL.
 
 The bot keeps track of the timestamps of the messages it posts and ignores any events that contain those timestamps to avoid responding to itself.
