@@ -219,23 +219,26 @@ def handle_event(data):
     if event_type == "message" and subtype is None:
         if event.get("channel", "").startswith('D') or event.get("channel_type") in ['im', 'app_home']:
             key = f"{event['channel']}:{thread_ts}"
-            if key in greeted_threads:
-                return
+            
             if is_top_level_dm(event):
-                name = resolve_name(user)
-                saludo = f"Hola {name}, ¿cómo te puedo ayudar hoy?" if name else "¡Hola! ¿Cómo estás? ¿En qué puedo ayudarte hoy?"
-                try:
-                    client.chat_postMessage(
-                        channel=event["channel"],
-                        text=saludo,
-                        mrkdwn=True,
-                        thread_ts=thread_ts
-                    )
-                    sent_ts.add(event_ts)
-                except SlackApiError as e:
-                    print(f"Error posting saludo: {e.response['error']}")
-                return
-            # No es primer mensaje → Gemini
+                # Solo saluda si no ha sido saludado antes en este hilo
+                if key not in greeted_threads:
+                    name = resolve_name(user)
+                    saludo = f"Hola {name}, ¿cómo te puedo ayudar hoy?" if name else "¡Hola! ¿Cómo estás? ¿En qué puedo ayudarte hoy?"
+                    try:
+                        client.chat_postMessage(
+                            channel=event["channel"],
+                            text=saludo,
+                            mrkdwn=True,
+                            thread_ts=thread_ts
+                        )
+                        sent_ts.add(event_ts)
+                        greeted_threads.add(key)  # Agrega solo después de éxito
+                    except SlackApiError as e:
+                        print(f"Error posting saludo: {e.response['error']}")
+                return  # Opcional: si quieres procesar el primer mensaje con Gemini también, quita este return
+
+            # No es primer mensaje → responde con Gemini (sin chequear greeted_threads)
             try:
                 response = genai_client.models.generate_content(
                     model=model_name,
