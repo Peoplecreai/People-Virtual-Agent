@@ -1,5 +1,5 @@
 import { getUserRecord } from '../tools/sheets.js';
-import { getSlackName } from './slackUtils.js';
+import { getSlackName, normalizeSlackId } from './slackUtils.js';
 
 const nameCache = {};
 
@@ -29,12 +29,13 @@ export async function getPreferredName(slackId) {
 }
 
 export async function resolveName(slackId) {
-  if (nameCache[slackId]) return nameCache[slackId];
+  const sid = normalizeSlackId(slackId);
+  if (nameCache[sid]) return nameCache[sid];
 
-  let name = await getSlackName(slackId);
-  const pref = await getPreferredName(slackId);
+  let name = await getSlackName(sid);
+  const pref = await getPreferredName(sid);
   if (pref) name = pref;
 
-  if (name) nameCache[slackId] = name;
+  if (name) nameCache[sid] = name;
   return name;
 }
