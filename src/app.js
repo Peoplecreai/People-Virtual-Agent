@@ -48,5 +48,5 @@ export { app };
 // Start function
 export async function startApp() {
   await app.start(process.env.PORT || 3000);
-  console.log('⚡️ Bolt app is running!');
+  logger.info('⚡️ Bolt app is running!');
 }
