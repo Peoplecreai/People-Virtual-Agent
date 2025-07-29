@@ -33,17 +33,6 @@ const app = new App({
   token: botToken,
 });
 
-// Ruta de test /gemini (equivalente a helloworld)
-receiver.app.get('/gemini', async (req, res) => {
-  try {
-    const response = await generateContent('Hi');
-    res.send(response);
-  } catch (error) {
-    console.error(`Gemini error: ${error.message}`);
-    res.status(500).send(`Unexpected error: ${error.message}`);
-  }
-});
-
 // Exporta app para handlers y start
 export { app };
 
