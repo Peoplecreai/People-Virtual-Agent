@@ -1,26 +1,75 @@
 import admin from 'firebase-admin';
-import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
 
-const PROJECT_ID = 'people-virtual-agent-403056684625';
-const SECRET_NAME = `projects/${PROJECT_ID}/secrets/MY_GOOGLE_CREDS/versions/latest`;
+let cachedDb = null;
+let cachedApp = null;
 
-const secretClient = new SecretManagerServiceClient();
-
-async function getServiceAccountJson() {
-  const [version] = await secretClient.accessSecretVersion({ name: SECRET_NAME });
-  const payload = version.payload.data.toString('utf8');
-  return JSON.parse(payload);
+function getCreds() {
+  const credsJson = process.env.MY_GOOGLE_CREDS;
+  if (!credsJson) {
+    console.error('[ERROR] MY_GOOGLE_CREDS not set');
+    return null;
+  }
+  try {
+    return JSON.parse(credsJson);
+  } catch (error) {
+    console.error('[ERROR] Invalid MY_GOOGLE_CREDS JSON');
+    return null;
+  }
 }
 
-// Solo inicializa una vez
-let initializing = null;
-export const getDb = async () => {
-  if (admin.apps.length) return admin.firestore();
-  if (!initializing) {
-    initializing = getServiceAccountJson().then((serviceAccount) => {
-      admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-      return admin.firestore();
+export async function getDb() {
+  if (cachedDb) return cachedDb;
+
+  const creds = getCreds();
+  if (!creds) return null;
+
+  if (!cachedApp) {
+    cachedApp = admin.initializeApp({
+      credential: admin.credential.cert(creds),
     });
   }
-  return initializing;
-};
+  cachedDb = admin.firestore();
+  return cachedDb;
+}
+
+// Función para obtener historial por user_id
+export async function getUserHistory(userId) {
+  const db = await getDb();
+  if (!db) return null;
+
+  try {
+    const doc = await db.collection('chats').doc(userId).get();
+    return doc.exists ? doc.data().history : [];
+  } catch (error) {
+    console.error(`[FIRESTORE getUserHistory] ${error.message}`);
+    return [];
+  }
+}
+
+// Función para guardar historial por user_id
+export async function saveUserHistory(userId, history) {
+  const db = await getDb();
+  if (!db) return null;
+
+  try {
+    await db.collection('chats').doc(userId).set({ history }, { merge: true });
+    return true;
+  } catch (error) {
+    console.error(`[FIRESTORE saveUserHistory] ${error.message}`);
+    return false;
+  }
+}
+
+// (Opcional) Función para borrar historial
+export async function resetUserHistory(userId) {
+  const db = await getDb();
+  if (!db) return null;
+
+  try {
+    await db.collection('chats').doc(userId).delete();
+    return true;
+  } catch (error) {
+    console.error(`[FIRESTORE resetUserHistory] ${error.message}`);
+    return false;
+  }
+}
