@@ -1,9 +1,0 @@
-Flask
-slack_sdk
-python-dotenv
-google-genai
-gunicorn
-pytest
-pytest-mock
-gspread
-google-auth
