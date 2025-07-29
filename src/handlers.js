@@ -3,6 +3,7 @@ import { generateContent } from '../agent/gemini.js';
 import { resolveName } from '../utils/nameResolution.js';
 import { isTopLevelDm, normalizeSlackId } from '../utils/slackUtils.js';
 import { botUserId } from './app.js';
+import { logger } from '../utils/logger.js'
 
 // Registra handlers en app
 export function registerHandlers() {
@@ -26,7 +27,7 @@ export function registerHandlers() {
           await say({ text: saludo, thread_ts: threadTs });
           greetedThreads.add(key);
         } catch (error) {
-          console.error(`[assistant_thread_started] Error: ${error.message}`);
+          logger.error(`Error in message: ${error.message}`);
         }
       }
     }
