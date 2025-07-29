@@ -1,5 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
-import { db } from './firebase.js';
+import { getDb } from '../firebase.js';
 import logger from '../utils/logger.js';
 
 const apiKey = process.env.GEMINI_API_KEY;
@@ -17,12 +17,16 @@ function historyToGeminiFormat(history) {
 
 // Obtiene historial del usuario desde Firestore
 async function getChatHistory(userId) {
+  const db = await getDb();
+  if (!db) return [];
   const doc = await db.collection('chats').doc(userId).get();
   return doc.exists ? doc.data().history : [];
 }
 
 // Guarda historial del usuario en Firestore
 async function saveChatHistory(userId, history) {
+  const db = await getDb();
+  if (!db) return;
   await db.collection('chats').doc(userId).set({ history }, { merge: true });
 }
 
