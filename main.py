@@ -77,7 +77,7 @@ def get_preferred_name(slack_id):
             return None
     return None
 
-# Fallback to Slack profile information when the name isn't found in the sheet
+# Fallback a perfil de Slack cuando no hay nombre en el Sheet
 def get_slack_name(slack_id):
     try:
         info = client.users_info(user=slack_id)
@@ -89,12 +89,43 @@ def get_slack_name(slack_id):
         print(f"Unexpected error fetching Slack profile: {e}")
     return None
 
+# Resolución de nombre (Slack -> Sheet preferido sobrescribe) con caché simple
+_name_cache = {}
+def resolve_name(slack_id):
+    if slack_id in _name_cache:
+        return _name_cache[slack_id]
+    name = get_slack_name(slack_id)
+    pref = get_preferred_name(slack_id)
+    if pref:
+        name = pref
+    if name:
+        _name_cache[slack_id] = name
+    return name
+
+# Detecta si es DM top-level (primer mensaje del hilo)
+def is_top_level_dm(event: dict) -> bool:
+    ch = event.get("channel", "")
+    ch_type = event.get("channel_type")
+    is_dm = ch.startswith("D") or ch_type == "im"
+    thread_ts = event.get("thread_ts")
+    ts = event.get("ts")
+    is_top = (thread_ts is None) or (thread_ts == ts)
+    return is_dm and is_top
+
 # ========== Flask app y Slack handler ==========
 app = Flask(__name__)
 processed_ids = set()
 sent_ts = set()
+processed_event_ids = set()
 
 def handle_event(data):
+    # Evita reprocesar el mismo evento por reintentos de Slack
+    eid = data.get("event_id")
+    if eid and eid in processed_event_ids:
+        return
+    if eid:
+        processed_event_ids.add(eid)
+
     event = data["event"]
     event_type = event.get("type")
     event_ts = event.get("ts")
@@ -114,9 +145,9 @@ def handle_event(data):
 
     # DM: Saludo personalizado solo en el primer mensaje del hilo
     if event_type == "message" and subtype is None:
-        if event["channel"].startswith('D') or event.get("channel_type") in ['im', 'app_home']:
-            if thread_ts == event_ts:
-                name = get_preferred_name(user) or get_slack_name(user)
+        if event.get("channel", "").startswith('D') or event.get("channel_type") in ['im', 'app_home']:
+            if is_top_level_dm(event):
+                name = resolve_name(user)
                 if name:
                     saludo = f"Hola {name}, ¿cómo te puedo ayudar hoy?"
                 else:
@@ -132,16 +163,17 @@ def handle_event(data):
                 except SlackApiError as e:
                     print(f"Error posting saludo: {e.response['error']}")
                 return
-            # Si no es el primer mensaje del hilo, responde con Gemini
+
+            # No es el primer mensaje del hilo → responde con Gemini
             try:
                 response = genai_client.models.generate_content(
                     model=model_name,
-                    contents=event["text"],
+                    contents=event.get("text", ""),
                 )
-                textout = response.text.replace("**", "*")
+                textout = (response.text or "").replace("**", "*")
                 resp = client.chat_postMessage(
                     channel=event["channel"],
-                    text=textout,
+                    text=textout or "¿Puedes repetir tu mensaje?",
                     mrkdwn=True,
                     thread_ts=thread_ts
                 )
@@ -161,12 +193,12 @@ def handle_event(data):
         try:
             response = genai_client.models.generate_content(
                 model=model_name,
-                contents=event["text"],
+                contents=event.get("text", ""),
             )
-            textout = response.text.replace("**", "*")
+            textout = (response.text or "").replace("**", "*")
             resp = client.chat_postMessage(
                 channel=event["channel"],
-                text=textout,
+                text=textout or "",
                 mrkdwn=True,
                 thread_ts=thread_ts
             )
