@@ -57,3 +57,18 @@ export async function sendChatMessage(userId, userMessage) {
     throw error;
   }
 }
+
+// Genera contenido simple sin conservar historial
+export async function generateContent(contents) {
+  try {
+    const ai = new GoogleGenAI({ apiKey });
+    const response = await ai.models.generateContent({
+      model: modelName,
+      contents,
+    });
+    return response.text;
+  } catch (error) {
+    logger.error(`Gemini API error: ${error.message}`);
+    throw error;
+  }
+}
