@@ -43,8 +43,9 @@ export function isTopLevelDm(event) {
 export async function getSlackName(slackId) {
   try {
     const { app } = await import('../src/app.js');
+codex/fix-nameresolution.js-functionality
     const sid = normalizeSlackId(slackId);
-    const { user } = await app.client.users.info({ user: sid });
+    const { user } = await app.client.users.info({ user: slackId });
     const profile = user.profile || {};
     return profile.display_name || profile.real_name;
   } catch (error) {
