@@ -1,7 +1,8 @@
-import { app } from '../src/app.js'; // app.client para API calls
+// getSlackName carga app solo cuando se usa para evitar requerir variables de entorno durante tests
 
 export function normalizeSlackId(value) {
   if (!value) return '';
+
   let v = String(value).trim();
 
   // <@U…|alias>
@@ -15,13 +16,14 @@ export function normalizeSlackId(value) {
     v = v.replace(/\/$/, '').split('/').pop();
   }
 
-  // 'T……-U……'
+  // 'T……-U……' (team-user)
   if (v.includes('-')) {
-    const [, right] = v.split('-', 2);
-    if (right.startsWith('U')) v = right;
+    const parts = v.split('-');
+    const right = parts[parts.length - 1];
+    if (right && right.startsWith('U')) v = right;
   }
 
-  // Toma desde 'U'
+  // Si viene 'T…… U……' o algo raro, toma desde la 'U…'
   const uPos = v.indexOf('U');
   if (uPos > 0) v = v.slice(uPos);
 
@@ -40,6 +42,7 @@ export function isTopLevelDm(event) {
 
 export async function getSlackName(slackId) {
   try {
+    const { app } = await import('../src/app.js');
     const { user } = await app.client.users.info({ user: slackId });
     const profile = user.profile || {};
     return profile.display_name || profile.real_name;
