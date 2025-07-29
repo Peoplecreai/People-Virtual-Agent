@@ -1,4 +1,5 @@
-import { App, ExpressReceiver } from '@slack/bolt';
+import boltPkg from '@slack/bolt';
+const { App, ExpressReceiver } = boltPkg;
 import { generateContent } from '../agent/gemini.js';
 
 // Globals (equivalentes a sets y caches)
