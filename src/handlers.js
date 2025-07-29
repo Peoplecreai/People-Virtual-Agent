@@ -40,15 +40,17 @@ export function registerHandlers() {
   });
 
   // 2) Mensajes (incluye DM fallback y app_mention)
-  app.event('message', async ({ event, say, client }) => {
+  app.event('message', async ({ event, say, client, body }) => {
     const eventTs = event.ts;
+    const eventId = body.event_id;
     const user = event.user;
     const botId = event.bot_id;
     const subtype = event.subtype;
     const threadTs = event.thread_ts || eventTs;
 
     // Ignora bots, duplicados
-    if (sentTs.has(eventTs) || user === botUserId || botId || subtype === 'bot_message') return;
+    if (sentTs.has(eventTs) || processedEventIds.has(eventId) || user === botUserId || botId || subtype === 'bot_message') return;
+    processedEventIds.add(eventId);
 
     // DM normal o channel_type im
     const channel = event.channel || '';
