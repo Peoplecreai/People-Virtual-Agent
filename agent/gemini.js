@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { logger } from '../utils/logger.js';
 
 const apiKey = process.env.GEMINI_API_KEY;
 if (!apiKey) throw new Error('GEMINI_API_KEY is not set');
@@ -13,7 +14,7 @@ export async function generateContent(contents) {
     const result = await model.generateContent(contents);
     return result.response.text();
   } catch (error) {
-    console.error(`Gemini API error: ${error.message}`);
+    logger.error(`Gemini API error: ${error.message}`);
     throw error;
   }
 }
