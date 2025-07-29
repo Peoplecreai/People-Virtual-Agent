@@ -1,4 +1,4 @@
-import { getUserRecord, getPreferredName } from '../tools/sheets.js';
+import { getUserRecord } from '../tools/sheets.js';
 import { getSlackName } from './slackUtils.js';
 
 const nameCache = {};
