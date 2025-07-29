@@ -143,6 +143,33 @@ def handle_event(data):
     ):
         return
 
+    # Manejo de assistant_thread_started para saludo inicial
+    if event_type == "assistant_thread_started":
+        assistant_thread = event.get("assistant_thread", {})
+        user = assistant_thread.get("user_id")  # O event.get("user") si fallback
+        channel = assistant_thread.get("channel_id")
+        thread_ts = assistant_thread.get("thread_ts")
+        context = assistant_thread.get("context", {})  # Opcional: usa channel_id de context si necesitas
+
+        # Resuelve nombre
+        name = resolve_name(user)
+        if name:
+            saludo = f"Hola {name}, ¿cómo te puedo ayudar hoy?"
+        else:
+            saludo = "¡Hola! ¿Cómo estás? ¿En qué puedo ayudarte hoy?"
+
+        try:
+            client.chat_postMessage(
+                channel=channel,
+                text=saludo,
+                mrkdwn=True,
+                thread_ts=thread_ts  # Para anclar al thread
+            )
+            sent_ts.add(event_ts)  # O usa thread_ts si prefieres
+        except SlackApiError as e:
+            print(f"Error posting saludo in assistant_thread_started: {e.response['error']}")
+        return
+
     # DM: Saludo personalizado solo en el primer mensaje del hilo
     if event_type == "message" and subtype is None:
         if event.get("channel", "").startswith('D') or event.get("channel_type") in ['im', 'app_home']:
