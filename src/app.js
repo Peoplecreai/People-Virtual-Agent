@@ -1,6 +1,6 @@
 import boltPkg from '@slack/bolt';
 const { App, ExpressReceiver } = boltPkg;
-import { generateContent } from '../agent/gemini.js';
+import { sendChatMessage } from '../agent/gemini.js';
 import logger from '../utils/logger.js';
 
 // Globals (equivalentes a sets y caches)
