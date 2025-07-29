@@ -66,7 +66,7 @@ export function registerHandlers() {
     processedEventIds.add(eventId);
 
     try {
-      const response = await sendChatMessage(event.text || '');
+      const response = await sendChatMessage(user, event.text || '');
       const textOut = (response || '').replace(/\*\*/g, '*') || '¿Puedes repetir tu mensaje?';
       const resp = await say({ text: textOut, thread_ts: threadTs });
       sentTs.add(resp.ts);
