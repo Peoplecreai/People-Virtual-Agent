@@ -1,4 +1,4 @@
-import admin from 'firestore';
+import admin from 'firebase-admin';
 
 let cachedDb = null;
 let cachedApp = null;
