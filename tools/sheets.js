@@ -10,16 +10,22 @@ function nk(s) {
 }
 
 // Busca el Slack ID en cualquier encabezado "Slack ID", "slackid", etc.
-function getSlackIdFromRow(row) {
-  const keys = Object.keys(row);
+function getSlackIdFromRow(obj) {
+  const keys = Object.keys(obj);
   for (const key of keys) {
     const norm = nk(key);
     if (norm.includes('slack') && norm.includes('id')) {
-      return row[key];
+      return obj[key];
     }
   }
   // Fallback por si acaso
-  return row['Slack ID'] || row['slackid'] || row['slack_id'] || row['idslack'] || row['slack'];
+  return (
+    obj['Slack ID'] ||
+    obj['slackid'] ||
+    obj['slack_id'] ||
+    obj['idslack'] ||
+    obj['slack']
+  );
 }
 
 async function getAuth() {
@@ -74,9 +80,10 @@ export async function getUserRecord(slackId) {
     const target = normalizeSlackId(slackId);
 
     for (const row of rows) {
-      let sid = getSlackIdFromRow(row);
+      const obj = row.toObject();
+      let sid = getSlackIdFromRow(obj);
       sid = normalizeSlackId(String(sid || ''));
-      if (sid === target) return row;
+      if (sid === target) return obj;
     }
     return null;
   } catch (error) {
