@@ -1,6 +1,4 @@
-// getSlackName carga app solo cuando se usa para evitar requerir variables de entorno durante tests
-
-// Normaliza Slack ID igual que en Python
+// Normalizador de Slack ID equivalente al de tu Python
 export function normalizeSlackId(value) {
   if (!value) return "";
   let v = String(value).trim();
@@ -19,15 +17,17 @@ export function normalizeSlackId(value) {
 
   // 'T……-U……' (como en tu sheet)
   if (v.includes("-")) {
-    const [, right] = v.split("-", 2);
-    if (right && right.startsWith("U")) v = right;
+    // split en el primer '-'
+    const split = v.split("-", 2);
+    if (split.length === 2 && split[1].startsWith("U")) v = split[1];
   }
 
-  // Si viene 'T…… U……' o algo raro, toma desde la U…
+  // Si queda algo como 'Txxx Uxxx' o 'xxxUxxxx', toma desde la U
   const uPos = v.indexOf("U");
   if (uPos > 0) v = v.slice(uPos);
 
-  return v;
+  // Quita cualquier espacio sobrante
+  return v.trim();
 }
 
 export async function getSlackName(slackId) {
