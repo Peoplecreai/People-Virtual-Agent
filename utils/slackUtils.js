@@ -1,30 +1,30 @@
 // getSlackName carga app solo cuando se usa para evitar requerir variables de entorno durante tests
 
+// Normaliza Slack ID igual que en Python
 export function normalizeSlackId(value) {
-  if (!value) return '';
-
+  if (!value) return "";
   let v = String(value).trim();
 
   // <@U…|alias>
-  if (v.startsWith('<@') && v.endsWith('>')) {
+  if (v.startsWith("<@") && v.endsWith(">")) {
     v = v.slice(2, -1);
-    if (v.includes('|')) v = v.split('|')[0];
+    if (v.includes("|")) v = v.split("|")[0];
   }
 
   // URL -> último segmento
-  if (v.startsWith('https://')) {
-    v = v.replace(/\/$/, '').split('/').pop();
+  if (v.startsWith("https://")) {
+    const parts = v.replace(/\/$/, "").split("/");
+    v = parts[parts.length - 1];
   }
 
-  // 'T……-U……' (team-user)
-  if (v.includes('-')) {
-    const parts = v.split('-');
-    const right = parts[parts.length - 1];
-    if (right && right.startsWith('U')) v = right;
+  // 'T……-U……' (como en tu sheet)
+  if (v.includes("-")) {
+    const [, right] = v.split("-", 2);
+    if (right && right.startsWith("U")) v = right;
   }
 
-  // Si viene 'T…… U……' o algo raro, toma desde la 'U…'
-  const uPos = v.indexOf('U');
+  // Si viene 'T…… U……' o algo raro, toma desde la U…
+  const uPos = v.indexOf("U");
   if (uPos > 0) v = v.slice(uPos);
 
   return v;
