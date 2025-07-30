@@ -30,16 +30,6 @@ export function normalizeSlackId(value) {
   return v;
 }
 
-export function isTopLevelDm(event) {
-  const ch = event.channel || '';
-  const chType = event.channel_type;
-  const isDm = ch.startsWith('D') || chType === 'im';
-  const threadTs = event.thread_ts;
-  const ts = event.ts;
-  const isTop = !threadTs || threadTs === ts;
-  return isDm && isTop;
-}
-
 export async function getSlackName(slackId) {
   try {
     const { app } = await import('../src/app.js');
