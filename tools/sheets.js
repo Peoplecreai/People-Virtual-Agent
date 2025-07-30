@@ -72,4 +72,18 @@ function nk(s) {
   return s.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+// Busca el Slack ID de la fila con máxima tolerancia
+function getSlackIdFromRow(row) {
+  const keys = Object.keys(row);
+  // Busca cualquier encabezado que contenga "slack" y "id"
+  for (const key of keys) {
+    const norm = nk(key);
+    if (norm.includes('slack') && norm.includes('id')) {
+      return row[key];
+    }
+  }
+  // Fallback por si acaso
+  return row['Slack ID'] || row['slackid'] || row['slack_id'] || row['idslack'] || row['slack'];
+}
+
 export { getPreferredName } from '../utils/nameResolution.js'; // Ya definido allí, pero exporta si necesitas
