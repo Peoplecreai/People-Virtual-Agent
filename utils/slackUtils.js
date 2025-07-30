@@ -16,6 +16,10 @@ export function normalizeSlackId(value) {
   }
 
   // 'T……-U……' (como en tu sheet)
+  if (v.includes("T05NRU10WAW-")) {
+    const rest = v.split("T05NRU10WAW-")[1];
+    if (rest) v = rest.trim();
+  }
   if (v.includes("-")) {
     // split en el primer '-'
     const split = v.split("-", 2);
