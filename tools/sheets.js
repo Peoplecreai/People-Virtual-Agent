@@ -4,6 +4,24 @@ import { normalizeSlackId } from '../utils/slackUtils.js';
 
 let cachedAuth = null;
 
+// Normaliza strings para búsqueda de encabezados
+function nk(s) {
+  return s.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+// Busca el Slack ID en cualquier encabezado "Slack ID", "slackid", etc.
+function getSlackIdFromRow(row) {
+  const keys = Object.keys(row);
+  for (const key of keys) {
+    const norm = nk(key);
+    if (norm.includes('slack') && norm.includes('id')) {
+      return row[key];
+    }
+  }
+  // Fallback por si acaso
+  return row['Slack ID'] || row['slackid'] || row['slack_id'] || row['idslack'] || row['slack'];
+}
+
 async function getAuth() {
   if (cachedAuth) return cachedAuth;
   const credsJson = process.env.MY_GOOGLE_CREDS;
@@ -56,8 +74,7 @@ export async function getUserRecord(slackId) {
     const target = normalizeSlackId(slackId);
 
     for (const row of rows) {
-      const rowNorm = Object.fromEntries(Object.entries(row).map(([k, v]) => [nk(k), v]));
-      let sid = rowNorm.slackid || rowNorm.slack_id || rowNorm.slack || rowNorm.idslack || row['Slack ID'];
+      let sid = getSlackIdFromRow(row);
       sid = normalizeSlackId(String(sid || ''));
       if (sid === target) return row;
     }
@@ -68,22 +85,5 @@ export async function getUserRecord(slackId) {
   }
 }
 
-function nk(s) {
-  return s.toLowerCase().replace(/[^a-z0-9]/g, '');
-}
+export { getPreferredName } from '../utils/nameResolution.js'; // Exporta si necesitas
 
-// Busca el Slack ID de la fila con máxima tolerancia
-function getSlackIdFromRow(row) {
-  const keys = Object.keys(row);
-  // Busca cualquier encabezado que contenga "slack" y "id"
-  for (const key of keys) {
-    const norm = nk(key);
-    if (norm.includes('slack') && norm.includes('id')) {
-      return row[key];
-    }
-  }
-  // Fallback por si acaso
-  return row['Slack ID'] || row['slackid'] || row['slack_id'] || row['idslack'] || row['slack'];
-}
-
-export { getPreferredName } from '../utils/nameResolution.js'; // Ya definido allí, pero exporta si necesitas
